@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">AroundMe</string>
+    <string name="google_map_key">AIzaSyC8eTxK26oSiRF8foiQxkxXXWIWwUq_uAI</string>
+    <string name="double_back_exit">Press back again to exit!</string>
+    <string name="tab_text_1">Place\'s List</string>
+    <string name="tab_text_2">Maps</string>
+</resources>
