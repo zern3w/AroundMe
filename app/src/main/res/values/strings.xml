@@ -4,4 +4,8 @@
     <string name="double_back_exit">Press back again to exit!</string>
     <string name="tab_text_1">Place\'s List</string>
     <string name="tab_text_2">Maps</string>
+
+    <dimen name="activity_horizontal_margin">16dp</dimen>
+    <dimen name="activity_vertical_margin">16dp</dimen>
+    <dimen name="fab_margin">16dp</dimen>
 </resources>

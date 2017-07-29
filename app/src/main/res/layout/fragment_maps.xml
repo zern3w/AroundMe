@@ -23,21 +23,31 @@
         android:paddingTop="2dp">
 
         <EditText
-            android:id="@+id/etSearchText"
+            android:id="@+id/etDistance"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
             android:layout_weight="4"
             android:hint="Enter radius (Meters)"
-            android:inputType="number"/>
+            android:inputType="number" />
 
         <Button
             android:id="@+id/btnSearch"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_weight="0.5"
-            android:onClick="onMapSearch"
+            android:drawableLeft="@android:drawable/ic_menu_search"
             android:text="Search" />
 
     </LinearLayout>
+
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/fab"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center"
+        android:layout_margin="@dimen/fab_margin"
+        android:src="@drawable/ic_list_white_24dp"
+        android:visibility="invisible" />
 
 </FrameLayout>
