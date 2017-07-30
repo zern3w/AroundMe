@@ -275,6 +275,7 @@ public class MapsActivity extends AppCompatActivity
 
     @Override
     public void onClick(View v) {
+        
         if (v == btnSearch) {
             if (!Validator.isEmpty(etDistance.getText().toString())) {
                 distance = Integer.parseInt(etDistance.getText().toString());
