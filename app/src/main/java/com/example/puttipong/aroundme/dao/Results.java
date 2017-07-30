@@ -20,7 +20,7 @@ import android.os.Parcelable.Creator;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 
-public class Results {
+public class Results implements Parcelable{
 
     @SerializedName("geometry")
     @Expose
@@ -58,6 +58,34 @@ public class Results {
     @SerializedName("opening_hours")
     @Expose
     private OpeningHours openingHours;
+
+    protected Results(Parcel in) {
+        icon = in.readString();
+        id = in.readString();
+        name = in.readString();
+        placeId = in.readString();
+        reference = in.readString();
+        scope = in.readString();
+        types = in.createStringArrayList();
+        vicinity = in.readString();
+        if (in.readByte() == 0) {
+            rating = null;
+        } else {
+            rating = in.readDouble();
+        }
+    }
+
+    public static final Creator<Results> CREATOR = new Creator<Results>() {
+        @Override
+        public Results createFromParcel(Parcel in) {
+            return new Results(in);
+        }
+
+        @Override
+        public Results[] newArray(int size) {
+            return new Results[size];
+        }
+    };
 
     public Geometry getGeometry() {
         return geometry;
@@ -155,4 +183,26 @@ public class Results {
         this.openingHours = openingHours;
     }
 
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel dest, int flags) {
+        dest.writeString(icon);
+        dest.writeString(id);
+        dest.writeString(name);
+        dest.writeString(placeId);
+        dest.writeString(reference);
+        dest.writeString(scope);
+        dest.writeStringList(types);
+        dest.writeString(vicinity);
+        if (rating == null) {
+            dest.writeByte((byte) 0);
+        } else {
+            dest.writeByte((byte) 1);
+            dest.writeDouble(rating);
+        }
+    }
 }

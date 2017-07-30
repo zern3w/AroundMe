@@ -6,14 +6,14 @@ import android.os.Bundle;
 import android.util.Log;
 
 import com.example.puttipong.aroundme.R;
+import com.example.puttipong.aroundme.dao.Results;
 import com.example.puttipong.aroundme.fragment.ListPlaceFragment;
+
+import java.util.List;
 
 public class ResultActivity extends AppCompatActivity {
 
-    private int distance;
-    private double lat, lng;
-    private static final int defaultValue = 0;
-
+    private Bundle bundle;
     private static final String TAG = "ResultActivity";
 
     @Override
@@ -21,20 +21,14 @@ public class ResultActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_result);
 
-        Intent intent = getIntent();
-        if (intent != null) {
-            distance = intent.getIntExtra("DISTANCE", defaultValue);
-            lat = intent.getDoubleExtra("LATITUDE", defaultValue);
-            lng = intent.getDoubleExtra("LONGTITUDE", defaultValue);
-        }
-
-        Log.i("MAIN", "onCreate: " + distance + lat + lng);
+        bundle = getIntent().getExtras();
+        List<Results> resultsList = bundle.getParcelableArrayList("RESULT_LIST");
 
         if (savedInstanceState == null) {
             getSupportFragmentManager()
                     .beginTransaction()
                     .add(R.id.contentContainer,
-                            ListPlaceFragment.newInstance(distance, lat, lng),
+                            ListPlaceFragment.newInstance(bundle),
                             "ListPlaceFragment")
                     .commit();
         }

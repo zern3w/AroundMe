@@ -4,11 +4,12 @@ import android.Manifest;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.location.Location;
-import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Parcelable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
@@ -18,14 +19,17 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.ImageView;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.puttipong.aroundme.R;
 import com.example.puttipong.aroundme.dao.Example;
+import com.example.puttipong.aroundme.dao.LocationSQLite;
+import com.example.puttipong.aroundme.dao.Results;
 import com.example.puttipong.aroundme.manager.APIService;
 import com.example.puttipong.aroundme.manager.ApiUtils;
+import com.example.puttipong.aroundme.manager.DBHelper;
+import com.example.puttipong.aroundme.manager.PicassoMarker;
+import com.example.puttipong.aroundme.tool.Validator;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
@@ -36,10 +40,15 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.Circle;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.squareup.picasso.Picasso;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -51,27 +60,30 @@ public class MapsActivity extends AppCompatActivity
         GoogleApiClient.OnConnectionFailedListener,
         LocationListener, View.OnClickListener {
 
+    private Button btnSearch;
+    private EditText etDistance;
+    private FloatingActionButton fab;
+
     private GoogleMap mGoogleMap;
+    private Location mLastLocation;
+    private Marker mCurrLocationMarker;
     private SupportMapFragment mapFrag;
     private LocationRequest mLocationRequest;
     private GoogleApiClient mGoogleApiClient;
-    private Location mLastLocation;
-    private Marker mCurrLocationMarker;
-    private EditText etDistance;
-    private Button btnSearch;
-    private FloatingActionButton fab;
+
     private int distance;
+    private DBHelper dbHelper;
     private LatLng myLatLng;
-    private LocationManager locationManager;
     private APIService mApiService;
+    private List<Results> resultsList;
+    private List<LocationSQLite> locationSQLites;
 
     private static final String TAG = "MapsActivity";
     private boolean doubleBackToExitPressedOnce = false;
-    public static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
+    private static final int MY_PERMISSIONS_REQUEST_LOCATION = 99;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState)
-    {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.fragment_maps);
 
@@ -79,6 +91,8 @@ public class MapsActivity extends AppCompatActivity
     }
 
     private void initInstance() {
+        resultsList = new ArrayList<Results>();
+        dbHelper = new DBHelper(this);
         etDistance = (EditText) findViewById(R.id.etDistance);
         btnSearch = (Button) findViewById(R.id.btnSearch);
         fab = (FloatingActionButton) findViewById(R.id.fab);
@@ -91,9 +105,16 @@ public class MapsActivity extends AppCompatActivity
     }
 
     @Override
+    protected void onStop() {
+        super.onStop();
+        if (mGoogleApiClient.isConnected()) {
+            mGoogleApiClient.disconnect();
+        }
+    }
+
+    @Override
     public void onPause() {
         super.onPause();
-
         //stop location updates when Activity is no longer active
         if (mGoogleApiClient != null) {
             LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
@@ -101,9 +122,8 @@ public class MapsActivity extends AppCompatActivity
     }
 
     @Override
-    public void onMapReady(GoogleMap googleMap)
-    {
-        mGoogleMap=googleMap;
+    public void onMapReady(GoogleMap googleMap) {
+        mGoogleMap = googleMap;
         mGoogleMap.setMapType(GoogleMap.MAP_TYPE_NORMAL);
 
         //Initialize Google Play Services
@@ -118,8 +138,7 @@ public class MapsActivity extends AppCompatActivity
                 //Request Location Permission
                 checkLocationPermission();
             }
-        }
-        else {
+        } else {
             buildGoogleApiClient();
             mGoogleMap.setMyLocationEnabled(true);
         }
@@ -129,7 +148,6 @@ public class MapsActivity extends AppCompatActivity
             public void onMapLongClick(LatLng latLng) {
                 myLatLng = latLng;
                 mCurrLocationMarker.setPosition(myLatLng);
-                mCurrLocationMarker.setSnippet("dfgdfg");
             }
         });
     }
@@ -157,10 +175,12 @@ public class MapsActivity extends AppCompatActivity
     }
 
     @Override
-    public void onConnectionSuspended(int i) {}
+    public void onConnectionSuspended(int i) {
+    }
 
     @Override
-    public void onConnectionFailed(ConnectionResult connectionResult) {}
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+    }
 
     private void checkLocationPermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
@@ -182,7 +202,7 @@ public class MapsActivity extends AppCompatActivity
                                 //Prompt the user once explanation has been shown
                                 ActivityCompat.requestPermissions(MapsActivity.this,
                                         new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                                        MY_PERMISSIONS_REQUEST_LOCATION );
+                                        MY_PERMISSIONS_REQUEST_LOCATION);
                             }
                         })
                         .create()
@@ -193,7 +213,7 @@ public class MapsActivity extends AppCompatActivity
                 // No explanation needed, we can request the permission.
                 ActivityCompat.requestPermissions(this,
                         new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                        MY_PERMISSIONS_REQUEST_LOCATION );
+                        MY_PERMISSIONS_REQUEST_LOCATION);
             }
         }
     }
@@ -218,16 +238,13 @@ public class MapsActivity extends AppCompatActivity
                         }
                         mGoogleMap.setMyLocationEnabled(true);
                     }
-
                 } else {
-
                     // permission denied, boo! Disable the
                     // functionality that depends on this permission.
                     Toast.makeText(this, "permission denied", Toast.LENGTH_LONG).show();
                 }
                 return;
             }
-
             // other 'case' lines to check for other
             // permissions this app might request
         }
@@ -236,40 +253,39 @@ public class MapsActivity extends AppCompatActivity
     @Override
     public void onLocationChanged(Location location) {
         mLastLocation = location;
-            if (mCurrLocationMarker != null) {
-                mCurrLocationMarker.remove();
-            }
-                //Place current location marker
-                myLatLng = new LatLng(location.getLatitude(), location.getLongitude());
-                MarkerOptions markerOptions = new MarkerOptions();
-                markerOptions.position(myLatLng);
-                markerOptions.title("Current Position");
-                markerOptions.snippet(String.format("%.5f", location.getLatitude())
-                        +" ,"+ String.format("%.5f", location.getLongitude()));
-                markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE));
-                mCurrLocationMarker = mGoogleMap.addMarker(markerOptions);
-                mCurrLocationMarker.showInfoWindow();
+        if (mCurrLocationMarker != null) {
+            mCurrLocationMarker.remove();
+        }
+        //Place current location marker
+        myLatLng = new LatLng(location.getLatitude(), location.getLongitude());
+        MarkerOptions markerOptions = new MarkerOptions();
+        markerOptions.position(myLatLng);
+        markerOptions.title("Current Position");
+        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE));
+        mCurrLocationMarker = mGoogleMap.addMarker(markerOptions);
+        mCurrLocationMarker.showInfoWindow();
 
-                //move map camera
-                mGoogleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(myLatLng, 11));
+        //move map camera
+        mGoogleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(myLatLng, 11));
 
-                if (mGoogleApiClient != null) {
-                    LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
+        if (mGoogleApiClient != null) {
+            LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
         }
     }
 
     @Override
     public void onClick(View v) {
         if (v == btnSearch) {
-            if (!isEmpty(etDistance.getText().toString())) {
+            if (!Validator.isEmpty(etDistance.getText().toString())) {
                 distance = Integer.parseInt(etDistance.getText().toString());
 
-                if (isCorrectDistance(distance)) {
+                if (Validator.isCorrectDistance(distance)) {
                     Toast.makeText(this,
                             distance + "Lat: " + myLatLng.latitude + ", Lng: " + myLatLng.longitude,
                             Toast.LENGTH_SHORT)
                             .show();
                     getPlaces();
+
                 } else {
                     Toast.makeText(this, "The maximum distance is 50000", Toast.LENGTH_SHORT).show();
                 }
@@ -277,11 +293,11 @@ public class MapsActivity extends AppCompatActivity
         }
 
         if (v == fab) {
-            distance = Integer.parseInt(etDistance.getText().toString());
+            Log.e(TAG, "PlaceAdapter: " + resultsList.get(0).getPhotos().get(0).getPhotoReference());
             Intent intent = new Intent(this, ResultActivity.class);
-            intent.putExtra("DISTANCE", distance);
-            intent.putExtra("LATITUDE", myLatLng.latitude);
-            intent.putExtra("LONGTITUDE", myLatLng.longitude);
+            Bundle bundle = new Bundle();
+            bundle.putParcelableArrayList("RESULT_LIST", (ArrayList<? extends Parcelable>) resultsList);
+            intent.putExtras(bundle);
             startActivity(intent);
         }
     }
@@ -308,49 +324,95 @@ public class MapsActivity extends AppCompatActivity
         }
     }
 
-    private void getPlaces() {
-        fab.setVisibility(View.VISIBLE);
+    private void getLocalData() {
+        locationSQLites =
+                dbHelper.getNearestPlaces(distance,
+                        myLatLng.latitude,
+                        myLatLng.longitude);
 
-        mApiService = ApiUtils.getAPIService();
+        for (int i = 0; i < locationSQLites.size(); i++) {
+            Double lat = Double.valueOf(locationSQLites.get(i).getLatitude());
+            Double lng = Double.valueOf(locationSQLites.get(i).getLongtitude());
+            String placeId = locationSQLites.get(i).getPlaceId();
+            final String placeName = locationSQLites.get(i).getPlaceName();
+            MarkerOptions markerOptions = new MarkerOptions();
+            LatLng latLng = new LatLng(lat, lng);
+            double mDistance = Validator.distFrom(lat, lng, myLatLng.latitude, myLatLng.longitude);
+            // Position of Marker on Map
+            markerOptions.position(latLng);
+            // Adding Title to the Marker
+            markerOptions.title(placeName);
+            markerOptions.snippet("Distance: " + String.format("%,.2f", mDistance) + " KM.");
+            // Adding Marker to the Camera.
+            Marker m = mGoogleMap.addMarker(markerOptions);
+
+            // move map camera
+            mGoogleMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+            mGoogleMap.animateCamera(CameraUpdateFactory.zoomTo(11));
+        }
+    }
+
+    private void getPlaces() {
+        Log.i(TAG, "getPlaces: ");
 
         String location = myLatLng.latitude + "," + myLatLng.longitude;
-//        Log.i(TAG, "getPlaces: "+ location);
-//        Log.i(TAG, "getPlaces: " + distance);
 
-        Call<Example> call = mApiService.getNearbyPlaces(location ,distance);
+        mApiService = ApiUtils.getAPIService();
+        Call<Example> call = mApiService.getNearbyPlaces(location, distance);
 
         call.enqueue(new Callback<Example>() {
             @Override
             public void onResponse(Call<Example> call, Response<Example> response) {
                 Log.i(TAG, "onResponse: " + response.code());
 
-//                try {
+                try {
                     mGoogleMap.clear();
+                    addCurrentMarker();
+                    drawCircleArea();
+                    getLocalData();
+                    fab.setVisibility(View.VISIBLE);
+
                     // This loop will go through all the results and add marker on each location.
                     for (int i = 0; i < response.body().getResults().size(); i++) {
                         Double lat = response.body().getResults().get(i).getGeometry().getLocation().getLat();
                         Double lng = response.body().getResults().get(i).getGeometry().getLocation().getLng();
-                        String placeName = response.body().getResults().get(i).getName();
-                        String vicinity = response.body().getResults().get(i).getVicinity();
+                        String placeId = response.body().getResults().get(i).getPlaceId();
+                        final String placeName = response.body().getResults().get(i).getName();
+                        final String vicinity = response.body().getResults().get(i).getVicinity();
+                        String iconUrl = response.body().getResults().get(i).getIcon();
                         MarkerOptions markerOptions = new MarkerOptions();
+                        double mDistance = Validator.distFrom(lat, lng, myLatLng.latitude, myLatLng.longitude);
                         LatLng latLng = new LatLng(lat, lng);
                         // Position of Marker on Map
                         markerOptions.position(latLng);
                         // Adding Title to the Marker
                         markerOptions.title(placeName);
-                        markerOptions.snippet(vicinity);
+                        markerOptions.snippet("Distance: " + String.format("%,.2f", mDistance) + " KM.");
                         // Adding Marker to the Camera.
-                        Marker m = mGoogleMap.addMarker(markerOptions);
-                        setInfoWindowAdapter(placeName, vicinity, latLng);
-                        // Adding colour to the marker
-                        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
-                        // move map camera
-                        mGoogleMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
-                        mGoogleMap.animateCamera(CameraUpdateFactory.zoomTo(11));
-//                    }
-//                } catch (Exception e) {
-//                    Log.d("onResponse", "There is an error");
-//                    e.printStackTrace();
+
+//                        for (int j = 0; j < locationSQLites.size(); j++) {
+//                            if (placeId != locationSQLites.get(j).getPlaceId()) {
+                                Marker m = mGoogleMap.addMarker(markerOptions);
+
+                                PicassoMarker markerPicasso = new PicassoMarker(m);
+                                Picasso.with(getApplicationContext())
+                                        .load(iconUrl)
+                                        .into(markerPicasso);
+                                // move map camera
+                                mGoogleMap.moveCamera(CameraUpdateFactory.newLatLng(latLng));
+                                mGoogleMap.animateCamera(CameraUpdateFactory.zoomTo(11));
+
+                                dbHelper.createPlace(placeId, placeName, lat, lng);
+//                            } else {
+//                                Log.i(TAG, "onResponse: placeID is duplicated");
+//                            }
+//                        }
+
+                        resultsList = response.body().getResults();
+                    }
+                } catch (Exception e) {
+                    Log.d("onResponse", "There is an error: " + e.toString());
+                    e.printStackTrace();
                 }
             }
 
@@ -361,48 +423,21 @@ public class MapsActivity extends AppCompatActivity
         });
     }
 
-    private void setInfoWindowAdapter(final String placeName, final String vicinity, LatLng latLng){
-       mGoogleMap.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter() {
-           @Override
-           public View getInfoWindow(Marker marker) {
-               return null;
-           }
-
-           @Override
-           public View getInfoContents(Marker marker) {
-               View v = getLayoutInflater().inflate(R.layout.info_window_layout, null);
-               LatLng latLng = marker.getPosition();
-
-               TextView tvPlaceName = (TextView) v.findViewById(R.id.tvPlaceName);
-               TextView tvAddress = (TextView) v.findViewById(R.id.tvAddress);
-               TextView tvLocation = (TextView) v.findViewById(R.id.tvLocation);
-               ImageView imgPlace = (ImageView) v.findViewById(R.id.imgPlace);
-
-               tvPlaceName.setText(placeName);
-               tvAddress.setText(vicinity);
-               tvLocation.setText("lat: " + String.format("%.5f", latLng.latitude
-                       + "   ,lng: " + String.format("%.5f", latLng.longitude)));
-
-//               Picasso.with(getActivity())
-//                       .load(imgUrl)
-//                       .into(imgVillage);
-
-               return v;
-           }
-       });
+    private void drawCircleArea() {
+        Circle circle = mGoogleMap.addCircle(new CircleOptions()
+                .center(myLatLng)
+                .radius(distance)
+                .strokeColor(Color.BLUE)
+                .fillColor(0x200000cc));
     }
 
-    private boolean isCorrectDistance(int distance) {
-        if (distance > 50000) {
-            return false;
-        }
-        return true;
+    private void addCurrentMarker() {
+        MarkerOptions CurrMarkerOption = new MarkerOptions();
+        CurrMarkerOption.position(myLatLng)
+                .title("You're here!")
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE));
+        mCurrLocationMarker = mGoogleMap.addMarker(CurrMarkerOption);
+        mCurrLocationMarker.showInfoWindow();
     }
 
-    private boolean isEmpty(String txt) {
-        if (txt.matches("")) {
-            return true;
-        }
-        return false;
-    }
 }

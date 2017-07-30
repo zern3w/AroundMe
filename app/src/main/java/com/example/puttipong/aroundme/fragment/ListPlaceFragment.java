@@ -26,14 +26,15 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import javax.xml.transform.Result;
+
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
 public class ListPlaceFragment extends Fragment {
 
-    private int distance;
-    private Double lat, lng;
+    private List<Results> results;
     private RecyclerView recyclerView;
     private APIService mAPIService;
     private PlaceAdapter adapter;
@@ -47,12 +48,8 @@ public class ListPlaceFragment extends Fragment {
         super();
     }
 
-    public static ListPlaceFragment newInstance(int distance, double lat, double lng) {
+    public static ListPlaceFragment newInstance(Bundle bundle) {
         ListPlaceFragment fragment = new ListPlaceFragment();
-        Bundle bundle = new Bundle();
-        bundle.putInt("DISTANCE", distance);
-        bundle.putDouble("LATITUDE", lat);
-        bundle.putDouble("LONGTITUDE", lng);
         fragment.setArguments(bundle);
         return fragment;
     }
@@ -62,9 +59,7 @@ public class ListPlaceFragment extends Fragment {
         super.onCreate(savedInstanceState);
 
         if (getArguments() != null) {
-            distance = getArguments().getInt("DISTANCE", 0);
-            lat = getArguments().getDouble("LATITUDE", 0.0);
-            lng = getArguments().getDouble("LONGTITUDE", 0.0);
+            results = getArguments().getParcelableArrayList("RESULT_LIST");
         }
     }
 
@@ -73,7 +68,6 @@ public class ListPlaceFragment extends Fragment {
                              Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_list, container, false);
         initInstances(rootView);
-        getData();
         return rootView;
     }
 
@@ -90,51 +84,21 @@ public class ListPlaceFragment extends Fragment {
         recyclerView.setItemAnimator(new DefaultItemAnimator());
         recyclerView.setLayoutManager(new LinearLayoutManager(getActivity()));
         recyclerView.setHasFixedSize(true);
-    }
 
-        private void getData() {
-            String latLng = lat + "," + lng;
-
-            Log.i(TAG, "getData: " + getArguments().getInt("DISTANCE", 0));
-            Log.i(TAG, "getData: " + latLng);
-
-            APIService apiService = ApiUtils.getAPIService();
-            Call<Example> call = apiService.getNearbyPlaces(latLng, distance);
-
-            call.enqueue(new Callback<Example>() {
+        if (results.size() != 0) {
+            Collections.sort(results, new Comparator<Results>() {
                 @Override
-                public void onResponse(Call<Example> call, Response<Example> response) {
-                    Log.i(TAG, "onResponse: " + response.code());
-
-                    if (response.body().getResults().size() != 0) {
-                        Log.i(TAG, "onResponse: " + response.body().getResults().size());
-                        Log.i(TAG, "onResponse: " + response.body().getResults().get(0).getName());
-
-                        resultsList = new ArrayList<Results>();
-                        resultsList = response.body().getResults();
-
-                        Collections.sort(resultsList, new Comparator<Results>() {
-                            @Override
-                            public int compare(Results o1, Results o2) {
-                                String s1 = o1.getName();
-                                String s2 = o2.getName();
-                                return s1.compareToIgnoreCase(s2);
-                            }
-                        });
-
-                        adapter = new PlaceAdapter(resultsList, getActivity());
-                        recyclerView.setAdapter(adapter);
-
-                    } else Toast.makeText(getActivity(), "No place around you!" ,Toast.LENGTH_SHORT).show();
-                }
-
-
-                @Override
-                public void onFailure(Call<Example> call, Throwable t) {
-                    Log.e(TAG, "onFailure: " + t.toString() );
+                public int compare(Results o1, Results o2) {
+                    String s1 = o1.getName();
+                    String s2 = o2.getName();
+                    return s1.compareToIgnoreCase(s2);
                 }
             });
-        }
+
+            adapter = new PlaceAdapter(results, getActivity());
+            recyclerView.setAdapter(adapter);
+        } else Toast.makeText(getActivity(), "No place around you!" ,Toast.LENGTH_SHORT).show();
+    }
 
     private void refreshContent() {
         new Handler().postDelayed(new Runnable() {

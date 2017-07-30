@@ -57,12 +57,13 @@ public class PlaceAdapter extends RecyclerView.Adapter<PlaceAdapter.ViewHolder> 
 
         try {
             Picasso.with(this.context)
-                    .load("https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference="
+                    .load("https://maps.googleapis.com/maps/api/place/photo?maxwidth=200&photoreference="
                             + results.getPhotos().get(0).getPhotoReference()
                             + "&key=AIzaSyCZ1BCe4Q7YL1nCa_ovtet4Bjn52tT20T8")
                     .fit()
                     .into(viewHolder.imgPlace);
         } catch (Exception e){
+            Log.i(TAG, "onBindViewHolder: " + e.toString());
             Picasso.with(this.context)
                     .load(R.drawable.nophoto)
                     .fit()
